@@ -8,13 +8,15 @@ from tensor2tensor.utils import registry
 EOS = text_encoder.EOS_ID
 
 split_token = ' <$issue_body$> '
+ISSUES_FILE = path.expanduser('~/Code/dl/datasets/github_issues.csv'), chunksize=chunksize
 
-
-def issue_title_generator():
+def issue_title_generator(chunksize=10000):
     print('Reading csv...')
-    issues = pd.read_csv(path.expanduser('~/Code/dl/datasets/github_issues.csv'))
-    concatenated = list(issues.issue_title + split_token + issues.body)
-    return (i for i in concatenated[:100000])
+    issues_batches = pd.read_csv(ISSUES_FILE)
+    for issues in tqdm(issues_batches, total=(5000000 // chunksize)):
+        concatenated = list(issues.issue_title + split_token + issues.body)
+        for row in concatenated:
+            yield row
 
 
 @registry.register_problem
@@ -53,7 +55,8 @@ class IssueToTitle(problem.Text2TextProblem):
             issue_title_generator())
 
         print('done encoding')
-        for issue in tqdm(issue_title_generator()):
+        for issue in issue_title_generator():
+            import pdb; pdb.set_trace()
             title, body = issue.split(split_token)
             encoded_title = encoder.encode(title) + [EOS]
             encoded_body = encoder.encode(body) + [EOS]
