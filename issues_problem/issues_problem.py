@@ -1,32 +1,31 @@
 from os import path
 import gc
 import pickle
+import multiprocessing
 from multiprocessing import Pool
 
-from tqdm import tqdm
 import pandas as pd
-from tensor2tensor.data_generators import problem, generator_utils, text_encoder
+from tensor2tensor.data_generators import problem, text_encoder
 from tensor2tensor.utils import registry
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+from tqdm import tqdm
 
-split_token = ' <$issue_body$> '
 EOS = text_encoder.EOS_ID
 ISSUES_FILE = path.expanduser('~/Code/dl/datasets/github_issues.csv')
-VOCAB_FILE = path.join(data_dir, 'vocab_encoder.pkl')
+VOCAB_FILE = path.expanduser('~/Code/dl/datasets/vocab_encoder.pkl')
 
 encoder = None
-try:
-    encoder = pickle.load(open(VOCAB_FILE, 'rb'))
-    print('Loaded saved vocab file from', VOCAB_FILE)
-except Exception:
-    encoder = LabelEncoder()
-    print('Couldn\'t find saved vocab file, starting from scratch')
 
-def get_data():
-    print('Reading csv...')
-    issues = pd.read_csv(ISSUES_FILE)
-    return list(issues.issue_title + split_token + issues.body)
+def train_encoder():
+    print('Running label encoder...')
+    concat_text = open(ISSUES_FILE).read()
+
+    uniq_chars = set()
+    for char in concat_text: uniq_chars.add(char)
+    encoder.fit(list(uniq_chars))
+
+    pickle.dump(encoder, open(VOCAB_FILE, 'wb'))
 
 def encode(text):
     encoded = encoder.transform(list(text)) + 2 # 0 and 1 are reserved by t2t
@@ -34,9 +33,12 @@ def encode(text):
     encoded.append(EOS)
     return encoded
         
-def encode_row(row):
-    title, body = row.split(split_token)
-    return {"inputs": encode(body), "targets": encode(title)}
+def encode_chunk(df):
+    encoded = []
+    for title, body in zip(df.issue_title, df.body):
+        encoded.append({"inputs": encode(body), "targets": encode(title)})
+    return encoded
+
 
 @registry.register_problem
 class IssueToTitle(problem.Text2TextProblem):
@@ -50,27 +52,40 @@ class IssueToTitle(problem.Text2TextProblem):
 
     @property
     def num_shards(self):
-        return 10
+        return 100
 
-    def train_encoder(self, data):
-        print('Running label encoder...')
-        concat_text = ' '.join(data)
+    @property
+    def input_space_id(self):
+        return problem.SpaceID.EN_CHR
 
-        uniq_chars = set()
-        for char in concat_text: uniq_chars.add(char)
-
-        del concat_text
-        for i in range(3): gc.collect()
-
-        encoder.fit(list(uniq_chars))
-        pickle.dump(encoder, open(VOCAB_FILE, 'wb'))
+    @property
+    def target_space_id(self):
+        return problem.SpaceID.EN_CHR
 
     def generator(self, data_dir, tmp_dir, is_training):
-        data = get_data()
+        global encoder
 
-        if not hasattr(encoder, 'classes_'):
-            train_encoder(data)
+        if path.isfile(VOCAB_FILE):
+            encoder = pickle.load(open(VOCAB_FILE, 'rb'))
+            print('Loaded saved vocab file from', VOCAB_FILE)
+        else:
+            print('Couldn\'t find saved vocab file, starting from scratch')
+            encoder = LabelEncoder()
+            train_encoder()
 
-        with Pool() as p:
-            return tqdm(p.imap(encode_row, data), total=len(data))
+        for i in range(10): gc.collect()
+
+        cpu_count = multiprocessing.cpu_count()
+        data = pd.read_csv(ISSUES_FILE)
+        chunks = np.array_split(data, cpu_count)
+        del data
+
+        for i in range(10): gc.collect()
+
+        with Pool(cpu_count) as p:
+            processed = p.imap_unordered(encode_chunk, chunks)
+
+            for chunk in processed:
+                for row in chunk:
+                    yield row
 
