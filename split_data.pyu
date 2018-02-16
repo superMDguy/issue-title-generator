@@ -1,0 +1,10 @@
+import os
+import pandas as pd
+
+ISSUES_FILE = os.path.expanduser('~/Code/dl/datasets/github_issues.csv')
+
+print('Reading csv...')
+issues = pd.read_csv(ISSUES_FILE)
+for issues in tqdm(issues):
+  titles = '\n'.join(list(issues.issue_title.str.replace('\n', ' '))
+  concatenated = list(issues.issue_title + split_token + issues.body)
