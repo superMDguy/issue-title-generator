@@ -8,14 +8,24 @@ import pandas as pd
 from tensor2tensor.data_generators import problem, text_encoder
 from tensor2tensor.utils import registry
 from sklearn.preprocessing import LabelEncoder
-import numpy as np
 from tqdm import tqdm
 
 EOS = text_encoder.EOS_ID
-ISSUES_FILE = path.expanduser('~/Code/dl/datasets/github_issues.csv')
+ISSUES_FILE = path.expanduser('~/github_issues.csv')
 VOCAB_FILE = path.expanduser('~/Code/dl/datasets/vocab_encoder.pkl')
+LINES_PER_CHUNK = 10000
 
 encoder = None
+
+def clean():
+    for i in range(10): gc.collect()
+
+def get_n_rows():
+    df = pd.read_csv(ISSUES_FILE)
+    nrows = len(df)
+    del df
+    clean()
+    return nrows
 
 def train_encoder():
     print('Running label encoder...')
@@ -73,17 +83,14 @@ class IssueToTitle(problem.Text2TextProblem):
             encoder = LabelEncoder()
             train_encoder()
 
-        for i in range(10): gc.collect()
+        clean()
 
         cpu_count = multiprocessing.cpu_count()
-        data = pd.read_csv(ISSUES_FILE)
-        chunks = np.array_split(data, cpu_count)
-        del data
-
-        for i in range(10): gc.collect()
+        estimated_chunks = get_n_rows() // LINES_PER_CHUNK
+        datagen = pd.read_csv(ISSUES_FILE, chunksize=LINES_PER_CHUNK)
 
         with Pool(cpu_count) as p:
-            processed = p.imap_unordered(encode_chunk, chunks)
+            processed = p.imap(encode_chunk, tqdm(datagen, total=estimated_chunks))
 
             for chunk in processed:
                 for row in chunk:
