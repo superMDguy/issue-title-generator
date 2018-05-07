@@ -1,1 +1,1 @@
-  use 1.4.1 version of 22 with 2    1080ti and p t of 2048. hen t trained translate_ende_wmt32k with big_single_gpu model for ~ 600k 
+  use 1.4.1 version of 22 with 2 wi  1080ti and   of 2048. hen n  trained translate_ende_wmt32k with big_single_gpu
