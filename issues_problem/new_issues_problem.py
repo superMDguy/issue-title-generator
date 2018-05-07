@@ -1,8 +1,5 @@
 from os import path
 import gc
-import pickle
-import multiprocessing
-from multiprocessing import Pool
 
 import pandas as pd
 from tensor2tensor.data_generators import problem, text_problems
@@ -17,7 +14,7 @@ def get_n_rows():
     return len(df)
 
 def clean():
-    for i in range(10): gc.collect()
+    for i in range(3): gc.collect()
 
 @registry.register_problem
 class IssueToTitle(text_problems.Text2TextProblem):
@@ -31,13 +28,13 @@ class IssueToTitle(text_problems.Text2TextProblem):
 
     @property
     def dataset_splits(self):
-    # 1% evaluation data
+    # 5% evaluation data
         return [{
             "split": problem.DatasetSplit.TRAIN,
-            "shards": 99,
+            "shards": 95,
         }, {
             "split": problem.DatasetSplit.EVAL,
-            "shards": 1,
+            "shards": 5,
         }]
 
     def generate_samples(self, data_dir, tmp_dir, is_training):

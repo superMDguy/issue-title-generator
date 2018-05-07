@@ -12,13 +12,14 @@ make clean-train:
 
 train:
 	t2t-trainer \
-  --t2t_usr_dir=./issues_problem \
+	--t2t_usr_dir=./issues_problem \
 	--data_dir=./data \
-  --problems=issue_to_title \
-  --model=transformer \
-  --hparams_set=transformer_prepend \
+	--problem=issue_to_title \
+	--model=transformer \
+	--hparams_set=transformer_prepend \
 	--hparams='batch_size=1024' \
-  --output_dir=./train
+	--output_dir=./train \
+	--eval_steps=500
 
 tensorboard:
 	sudo tensorboard --logdir ./train --host 0.0.0.0 --port 80
